@@ -157,7 +157,10 @@ analizar_datos() {
         matriz[$contadorMails, 1]=$id
         lineaEscribir="$id:"
         # spam/nospam del mail lo guardamos en la matriz y lo concatenamos
-        HS=$(echo "$correo" | cut -d "|" -f 3)
+        #HS=$(echo "$correo" | rev | cut -d "|" | rev)
+        #HS=$(echo "$correo" | awk -F '|' '{gsub(/[^0-9]+/,"",$NF); print $NF}')
+        #HS=$(echo "$correo" | cut -d "|" -f 3)
+        HS=$(echo "$correo" | awk -F '|' '{print $(NF-1)}')
         if [ -z "$HS" ]; then
             HS=0
         fi
@@ -217,6 +220,8 @@ analizar_datos() {
     fichero_freq=$resultado_file
 }
 cargar_fichero_freq() {
+    # se guarda el nombre del fichero para crear el .tfidf
+    fichero_freq=$1
     echo -e "Cargando fichero $1\n"
     contador_lineas=1
     numero_de_lineas=$(wc -l <"$1")
@@ -230,10 +235,13 @@ cargar_fichero_freq() {
             matrizPredicciones[$contador_lineas, $i]=$data
         done
         matrizFilas=$contador_lineas
+        ((numero_de_columnas--))
         matrizColum=$numero_de_columnas
+        ((numero_de_columnas++))
         mostrar_barra_progreso_carga_fichero $contador_lineas $numero_de_lineas
         ((contador_lineas++))
     done <"$1"
+    fichero_freq=$1
     echo -e "\nMatriz cargada correctamente\n"
 
     read -p "Pulse enter para continuar" enter
@@ -289,17 +297,87 @@ cargar_nuevo_freq() {
 realizar_prediccion() {
     clear
     echo -e "Realizando calculo TF-IDF\n"
+    # lista con los idfs
     array_idf=()
-    echo "filas $matrizFilas colum $matrizColum"
-    for ((i = 1; i <= 5; i++)); do
-        lineapintar=""
-        for ((j = 1; j <= 204; j++)); do
+    # se calculan los idfs
+    #numero maximo columnas
+    columMax=$((matrizColum + 1))
+
+    # numero de columnas que son terminos
+    numeroComTerminos=$((matrizColum - 3))
+    # se recorren todos los terminos de la matriz
+    for ((i = 1; i <= numeroComTerminos; i++)); do
+        contadorTerminos=0
+        # se recorren por filas
+        for ((j = 1; j <= matrizFilas; j++)); do
             valor=${matriz[$i, $j]}
-            lineapintar="$lineapintar $valor"
+            valor=$((valor))
+            # si el valor es distito de cero se le suma uno
+            if [ $valor -ne 0 ]; then
+                ((contadorTerminos++))
+            fi
         done
-        echo "$lineapintar"
+
+        # se calcula el idf del termino
+        if [ $contadorTerminos -ne 0 ]; then
+            resultado=$((matrizFilas / contadorTerminos))
+            resultado=$(awk "BEGIN { print log($resultado) / log(10) }")
+            array_idf[$i]=$resultado
+        else
+            array_idf[$i]=0
+        fi
     done
-    
+
+    # se recorren todas las filas
+    for ((i = 1; i <= matrizFilas; i++)); do
+        # media tf-idf
+        mediaTFIDF=0
+        # numero de palabras en el correo
+        numPalabras=${matriz[$i, 3]}
+        # contador temrinos ya que la lista son 3 menos devido al id hs y numpalabras
+        contTerm=1
+        # y luego todas los terminos de esta
+        for ((j = 4; j <= matrizColum; j++)); do
+            valor=${matriz[$i, $j]}
+            valor=$((valor))
+            if [ $valor -ne 0 ]; then
+                valor=$((valor))
+                valorAux=$(awk -v a="$valor" -v b="$numPalabras" 'BEGIN { print a / b }')
+                idfTermino=${array_idf[$contTerm]}
+                resultado=$(awk -v a="$valorAux" -v b="$idfTermino" 'BEGIN { print a * b }')
+                mediaTFIDF=$(awk -v a="$mediaTFIDF" -v b="$resultado" 'BEGIN { print a + b }')
+            fi
+            ((contTerm++))
+        done
+        # se resta uno para el calculo, da igual luego se pone a 1 otra vez
+        ((contTerm--))
+        # ahora se hace la media para ver si es sapm o no
+        mediaTFI=$(awk -v a="$mediaTFIDF" -v b="$contTerm" 'BEGIN { print a / b }')
+        # calcula para ver si es spam o no
+        if (($(awk 'BEGIN {print ("'$mediaTFI'" > 0.3)}'))); then
+            # Si es mayor que 0.3, asignas 1 a matrizPredicciones
+            echo "$mediaTFI"
+            matrizPredicciones[$i, $columMax]=1
+        else
+            # Si no es mayor que 0.3, asignas 0 a matrizPredicciones
+            matrizPredicciones[$i, $columMax]=0
+        fi
+
+    done
+
+    #escribimos en el fichero de salida
+    for ((i = 1; i <= matrizFilas; i++)); do
+        lineaEscribir2=""
+        for ((j = 1; j <= $columMax; j++)); do
+            valor2=${matrizPredicciones[$i, $j]}
+            if [ -z "$lineaEscribir2" ]; then
+                lineaEscribir2="$valor2"
+            else
+                lineaEscribir2="$lineaEscribir2:$valor2"
+            fi
+        done
+        echo -e "$lineaEscribir2" >>"$fichero_freq.tfidf"
+    done
 }
 prediccion_datos() {
     clear
@@ -336,6 +414,7 @@ prediccion_datos() {
             case $opcion in
             1)
                 echo -e "Se va a realizar una predcción con los datos del analisis recien echo"
+                cargar_fichero_freq "$fichero_freq.freq"
                 realizar_prediccion
                 echo -e "Pulsa enter para volver al menu"
                 read -p ""
@@ -380,7 +459,6 @@ main() {
         1)
             echo -e "${Y}Has seleccionado Análisis de datos${NORMAL}"
             analizar_datos
-            realizar_prediccion
             read -p "Pulse enter para continuar" enter
             ;;
         2)
@@ -399,6 +477,7 @@ main() {
             ;;
         5)
             echo "Saliendo..."
+            clear
             exit 0
             ;;
         *)
