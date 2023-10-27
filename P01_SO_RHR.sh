@@ -15,7 +15,13 @@ NOCOLOR='\033[1;37m' # Sin color
 # Definir colores de fondo
 FONDO_GRIS_CLARO='\033[47m'
 FONDO_GRIS_OSCURO='\033[100m'
-declare -A matrizDatos
+# varibles globales
+declare -A matriz
+declare -A matrizPredicciones
+matrizFilas=1
+matrizColum=1
+fichero_freq=""
+fichero_tfidf=""
 # Función para mostrar la barra de progreso
 mostrar_barra_progreso() {
     local progreso=$1                                # La variable 'progreso' almacena la cantidad de progreso completado, que se pasa como el primer argumento a la función.
@@ -28,6 +34,36 @@ mostrar_barra_progreso() {
 
     # Imprimir mensaje de progreso
     echo -ne "📊 Analizando correo $3 de $4"
+    echo -ne "${Y}["
+
+    for ((i = 0; i < anchura; i++)); do
+        if [ $i -lt $completado ]; then
+            echo -ne "${GL}#" # Barra de progreso
+        else
+            echo -ne "${Y}-" # Espacio vacío en la barra
+        fi
+    done
+
+    echo -ne "${Y}] "
+
+    if [ $porcentaje -eq 100 ]; then
+        echo -ne " ${GL}$porcentaje% \r" # Porcentaje completado
+    else
+        echo -ne " ${Y}$porcentaje% \r" # Porcentaje no completado
+    fi
+
+    echo -ne "${NO_COLOR}${RESET}" # Restaurar color
+}
+mostrar_barra_progreso_carga_fichero() {
+    local progreso=$1                                # La variable 'progreso' almacena la cantidad de progreso completado, que se pasa como el primer argumento a la función.
+    local total=$2                                   # La variable 'total' almacena el valor total que se debe alcanzar, que se pasa como el segundo argumento a la función.
+    local anchura=39                                 # La variable 'anchura' representa el ancho de la barra de progreso, que se ha fijado en 39 caracteres para la estética.
+    local completado=$((progreso * anchura / total)) # 'completado' calcula el número de caracteres que se deben mostrar como progreso en la barra.
+    ((completado++))                                 # Incrementa 'completado' en uno para asegurarse de que se muestre al menos un carácter de progreso.
+    local porcentaje=$((progreso * 100 / total))     # 'porcentaje' calcula el porcentaje de progreso en función de 'progreso' y 'total'.
+
+    # Imprimir mensaje de progreso
+    echo -ne "Cargando fichero"
     echo -ne "${Y}["
 
     for ((i = 0; i < anchura; i++)); do
@@ -99,7 +135,6 @@ analizar_datos() {
 
         # Reemplazar caracteres no alfanuméricos con espacios
         linea="${linea//[^[:alnum:]]/ }"
-
         # Agregar la línea procesada al array
         lista_terminos+=("$linea")
     done <"$palabras_file"
@@ -157,8 +192,8 @@ analizar_datos() {
             #lo guradamos en la matriz
             matriz[$contadorMails, $contador]=$ocurrencias
             valorMatriz=${matriz[$contadorMails, $contador]}
-            # guradamos el valor en la linea
-            lineaEscribir="${lineaEscribir}:${ocurrencias}"
+            # guradamos el valor en la line
+            lineaEscribir="${lineaEscribir}:${valorMatriz}"
             #aumentamos el contador de posiciones
             ((contador++))
         done
@@ -173,19 +208,35 @@ analizar_datos() {
 
         #aumentador el contador de mail para la matriz
         ((contadorMails++))
+        # delcarmo el valor del tamaño de la matriz
+        matrizFilas=$contadorMails
+        # se le resta uno al contador por que en la ultima iteracion se le sumo 1
+        ((contador--))
+        matrizColum=$contador
     done <"$emails_file"
+    fichero_freq=$resultado_file
 }
 cargar_fichero_freq() {
     echo -e "Cargando fichero $1\n"
     contador_lineas=1
+    numero_de_lineas=$(wc -l <"$1")
     while IFS= read -r linea; do
         numero_de_columnas=$(echo "$linea" | tr ':' ' ' | wc -w)
-        for ((i = 1; i <= $numero_de_columnas; i++)); do
+        # se le suma uno para que funcione
+        ((numero_de_columnas++))
+        for ((i = 1; i < $numero_de_columnas; i++)); do
             data=$(echo "$linea" | cut -d ":" -f $i)
-            matriz[$contador_lineas,$i]=$data
+            matriz[$contador_lineas, $i]=$data
+            matrizPredicciones[$contador_lineas, $i]=$data
         done
+        matrizFilas=$contador_lineas
+        matrizColum=$numero_de_columnas
+        mostrar_barra_progreso_carga_fichero $contador_lineas $numero_de_lineas
         ((contador_lineas++))
     done <"$1"
+    echo -e "\nMatriz cargada correctamente\n"
+
+    read -p "Pulse enter para continuar" enter
 }
 cargar_nuevo_freq() {
     while true; do
@@ -196,8 +247,6 @@ cargar_nuevo_freq() {
                 # Verifica si el archivo tiene la extensión .freq
                 echo -e "El archivo $nombre_archivo existe y tiene la extensión .freq\n"
                 cargar_fichero_freq $nombre_archivo
-                echo -e "Matriz cargada correctamente\n"
-                echo -e "Calculo TF-IDF echo correctamente"
                 read oo
                 return 0
             else
@@ -237,6 +286,21 @@ cargar_nuevo_freq() {
         fi
     done
 }
+realizar_prediccion() {
+    clear
+    echo -e "Realizando calculo TF-IDF\n"
+    array_idf=()
+    echo "filas $matrizFilas colum $matrizColum"
+    for ((i = 1; i <= 5; i++)); do
+        lineapintar=""
+        for ((j = 1; j <= 204; j++)); do
+            valor=${matriz[$i, $j]}
+            lineapintar="$lineapintar $valor"
+        done
+        echo "$lineapintar"
+    done
+    
+}
 prediccion_datos() {
     clear
     if matriz_vacia matriz; then
@@ -248,8 +312,9 @@ prediccion_datos() {
             case $opcion1 in
             1)
                 cargar_nuevo_freq
+                realizar_prediccion
                 echo -e "Pulsa enter para volver al menu"
-                read -p cosa
+                read -p ""
                 return 0
                 ;;
             2)
@@ -273,7 +338,7 @@ prediccion_datos() {
                 echo -e "Se va a realizar una predcción con los datos del analisis recien echo"
                 realizar_prediccion
                 echo -e "Pulsa enter para volver al menu"
-                read -p cosa
+                read -p ""
                 return 0
                 ;;
             2)
@@ -281,7 +346,7 @@ prediccion_datos() {
                 cargar_nuevo_freq
                 realizar_prediccion
                 echo -e "Pulsa enter para volver al menu"
-                read -p cosa
+                read -p ""
                 return 0
                 ;;
             3)
@@ -315,6 +380,8 @@ main() {
         1)
             echo -e "${Y}Has seleccionado Análisis de datos${NORMAL}"
             analizar_datos
+            realizar_prediccion
+            read -p "Pulse enter para continuar" enter
             ;;
         2)
             echo -e "${Y}Has seleccionado Predicción${NORMAL}"
