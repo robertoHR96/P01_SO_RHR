@@ -1,10 +1,14 @@
 free
 e
 f
+*.freq
+*.tfidf
 
 ./free
 ./e
 ./f
+./*.freq
+./*.tfidf
 
 /inputs/
 ./inputs/

@@ -42,4 +42,4 @@ Este proyecto está bajo la Licencia MIT. Puedes consultar el archivo [LICENSE](
 Este script fue desarrollado por [Tu Nombre].
 
 ---
-Nota: Reemplaza "[Tu Nombre]" con tu nombre o la información del autor si es necesario.
+Nota: Reemplaza "[Roberto Hermoso]" con tu nombre o la información del autor si es necesario.
