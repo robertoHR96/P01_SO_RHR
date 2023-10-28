@@ -98,6 +98,10 @@ matriz_vacia() {
     return 0
 }
 
+####################################################################################
+#                             Analisisis
+####################################################################################
+
 analizar_datos() {
     # Se limpia la consola
     clear
@@ -109,13 +113,13 @@ analizar_datos() {
 
     # Comprobar si los archivos existen
     if [[ ! -f $palabras_file || ! -f $emails_file ]]; then
-        echo -e " ${R}Error: Uno o ambos archivos no existen.${NOCOLOR}"
+        echo -e "${NORMAL}${NEGRITA}${R}Error: Uno o ambos archivos no existen.${NOCOLOR}${NORMAL}"
         return
     fi
 
     # Comprobar si el archivo de resultado ya existe
     if [[ -f $resultado_file ]]; then
-        echo -e "${R}Error: El archivo de resultado ya existe. Por favor, elige un nombre diferente.${NOCOLOR}"
+        echo -e "${NORMAL}${NEGRITA}${R}Error: El archivo: $resultado_file ya existe. Por favor, elige un nombre diferente.${NOCOLOR}${NORMAL}"
         return
     fi
 
@@ -207,7 +211,7 @@ analizar_datos() {
         # guardamos la linea en el fichero
         # Escribir resultados en el archivo de resultado
         echo -e "$lineaEscribir" >>"$resultado_file.freq"
-        echo -ne "${G}\n-- 💾 Datos del mail: $contadorMails, guardados en el fichero de frequencias: $resultado_file.freq correctamente${NOCOLOR} \n"
+        echo -ne "${G}\n-- 💾 Datos del mail: $contadorMails, guardados en el fichero de frequencias: $resultado_file.freq correctamente${NORMAL} \n"
 
         #aumentador el contador de mail para la matriz
         ((contadorMails++))
@@ -219,6 +223,11 @@ analizar_datos() {
     done <"$emails_file"
     fichero_freq=$resultado_file
 }
+
+####################################################################################
+#                              Prediciones
+####################################################################################
+
 cargar_fichero_freq() {
     # se guarda el nombre del fichero para crear el .tfidf
     fichero_freq=$1
@@ -246,56 +255,9 @@ cargar_fichero_freq() {
 
     read -p "Pulse enter para continuar" enter
 }
-cargar_nuevo_freq() {
-    while true; do
-        read -p "Ingrese el nombre del archivo: " nombre_archivo
-        if [ -f "$nombre_archivo" ]; then
-            # Verifica si el archivo existe
-            if [[ $nombre_archivo == *.freq ]]; then
-                # Verifica si el archivo tiene la extensión .freq
-                echo -e "El archivo $nombre_archivo existe y tiene la extensión .freq\n"
-                cargar_fichero_freq $nombre_archivo
-                read oo
-                return 0
-            else
-                echo -e "${R}El archivo $nombre_archivo existe, pero no tiene la extensión .freq${NOCOLOR}"
-                echo -e "Introduca 1 para volver a intentar o 2 para ir atras: \n"
-                read -p "Pulse enter para continuar" opcion
-                case $opcion in
-                1)
-                    clear
-                    ;;
-                2)
-                    return
-                    ;;
-                *)
-                    echo -e "${R}Opción no válida. Por favor, selecciona una opción válida.${NORMAL}"
-                    read -p "Presiona Enter para continuar..."
-                    ;;
-                esac
-            fi
-        else
-            echo -e "${R}El archivo $nombre_archivo no existe.${NOCOLOR}\n"
 
-            echo -e "Introduca 1 para volver a intentar o 2 para ir atras: \n"
-            read -p "Pulse enter para continuar" opcion
-            case $opcion in
-            1)
-                clear
-                ;;
-            2)
-                return
-                ;;
-            *)
-                echo -e "${R}Opción no válida. Por favor, selecciona una opción válida.${NORMAL}"
-                read -p "Presiona Enter para continuar..."
-                ;;
-            esac
-        fi
-    done
-}
 realizar_prediccion() {
-    clear
+    #clear
     echo -e "Realizando calculo TF-IDF\n"
     # lista con los idfs
     array_idf=()
@@ -376,31 +338,60 @@ realizar_prediccion() {
                 lineaEscribir2="$lineaEscribir2:$valor2"
             fi
         done
-        echo -e "$lineaEscribir2" >>"$fichero_freq.tfidf"
+        fichero_tfidf="${fichero_freq%.freq}"
+        echo -e "$lineaEscribir2" >>"$fichero_tfidf.tfidf"
     done
 }
+cargar_nuevo_freqq() {
+    while true; do
+        read -p "Ingrese el nombre del archivo: " nombre_archivo
+
+        if [ -f "$nombre_archivo" ]; then
+            if [[ $nombre_archivo == *.freq ]]; then
+                echo -e "El archivo $nombre_archivo existe y tiene la extensión .freq\n"
+                cargar_fichero_freq $nombre_archivo
+                return 1
+            else
+                echo -e "${NORMAL}${NEGRITA}${R}El archivo $nombre_archivo existe, pero no tiene la extensión .freq${NOCOLOR}${NORMAL}"
+                return 0
+            fi
+        else
+            echo -e "${NORMAL}${NEGRITA}${R}El archivo $nombre_archivo no existe.${NOCOLOR}${NORMAL}\n"
+            return 0
+        fi
+    done
+}
+
 prediccion_datos() {
     clear
     if matriz_vacia matriz; then
         while true; do
-            echo -e "No hay analisis recin echo\n"
+            clear
+            echo -e "${NORMAL}${NEGRITA}${Y}No hay analisis recin echo\n"
             echo -e "Se va a realizar una predcción con los datos cargados de un fichero externo\n"
-            echo -e "Introducca:\n - 1 Para cargar un fichero nuevo\n - 2 Para volver atras\n"
-            read opcion1
+            echo -e "Introducca:\n1️⃣  Para cargar un fichero nuevo\n2️⃣  Para volver atras\n${NOCOLOR}${NORMAL}"
+            read -p "Seleccione una opción: " opcion1
             case $opcion1 in
             1)
-                cargar_nuevo_freq
-                realizar_prediccion
-                echo -e "Pulsa enter para volver al menu"
-                read -p ""
-                return 0
+                if cargar_nuevo_freqq; then
+                    echo -e "Pulsa enter para volver al menu"
+                    read -p ""
+                else
+                    echo "Carga exitosa. Ejecutando realizar_prediccion"
+                    echo -e "Pulsa enter para continuar"
+                    read -p ""
+                    realizar_prediccion
+                    echo -e "Pulsa enter para continuar"
+                    read -p ""
+                    return 0
+                fi
                 ;;
             2)
                 return 0
                 ;;
             *)
                 echo $opcion1
-                echo -e "${R}Opción no válida. Por favor, selecciona una opción válida.${NORMAL}"
+                echo -e "${NORMAL}${NEGRITA}${R}Opción no válida. Por favor, selecciona una opción válida.${NOCOLOR}${NORMAL}"
                 read -p "Presiona Enter para continuar..."
                 clear
                 ;;
@@ -409,7 +400,7 @@ prediccion_datos() {
     else
         while true; do
             clear
-            echo -e "Acaba de realizar un analisis\n - 1 Deseas usar los datos de este analisis \n - 2 Cargar un fichero con un nuevo analisis \n - 3 Atras \nSelecione una opcion: "
+            echo -e "${NORMAL}${NEGRITA}${Y}Acaba de realizar un analisis\n1️⃣  Deseas usar los datos de este analisis \n2️⃣  Cargar un fichero con un nuevo analisis \n3️⃣  Atras ${NOCOLOR}${NORMAL} \nSelecione una opción: "
             read opcion
             case $opcion in
             1)
@@ -422,18 +413,25 @@ prediccion_datos() {
                 ;;
             2)
                 echo -e "Se va a realizar una predcción con los datos cargados de un fichero externo"
-                cargar_nuevo_freq
-                realizar_prediccion
-                echo -e "Pulsa enter para volver al menu"
-                read -p ""
-                return 0
+                if cargar_nuevo_freqq; then
+                    echo -e "Pulsa enter para volver al menu"
+                    read -p ""
+                else
+                    echo "Carga exitosa. Ejecutando realizar_prediccion"
+                    echo -e "Pulsa enter para continuar"
+                    read -p ""
+                    realizar_prediccion
+                    echo -e "Pulsa enter para continuar"
+                    read -p ""
+                    return 0
+                fi
                 ;;
             3)
                 return
                 ;;
             *)
 
-                echo -e "${R}Opción no válida. Por favor, selecciona una opción válida.${NORMAL}"
+                echo -e "${NORMAL}${NEGRITA}${R}Opción no válida. Por favor, selecciona una opción válida.${NOCOLOR}${NORMAL}"
                 read -p "Presiona Enter para continuar..."
                 clear
                 ;;
@@ -441,6 +439,76 @@ prediccion_datos() {
         done
     fi
 }
+
+####################################################################################
+#                               Informes
+####################################################################################
+
+cargar_nuevo_tfidf() {
+    echo -e "Cargar nuevo .tfidf"
+    return 0
+}
+abirir_opciones_informes() {
+    while true; do
+        echo -e "${NORMAL}${NEGRITA}${Y}Selecciones una opcion:"
+        echo -e "1️⃣  Informe 1"
+        echo -e "2️⃣  Informe 2"
+        echo -e "3️⃣  Informe 3"
+        echo -e "4️⃣  Atras${NOCOLOR}${NORMAL}"
+        read -p "Seleccione una opción: " opcion3
+        case $opcion3 in
+        1)
+            realizar_informe1
+            ;;
+        2)
+            realizar_informe2
+            ;;
+        3)
+            realizar_informe3
+            ;;
+        4)
+            return 0
+            ;;
+        *)
+            echo -e "${R}Opción no válida. Por favor, selecciona una opción válida.${NORMAL}"
+            read -p "Presiona Enter para continuar..."
+            clear
+            ;;
+        esac
+    done
+}
+
+menu_informes() {
+    clear
+    if matriz_vacia matrizPredicciones; then
+        while true; do
+            echo -e "${NORMAL}${NEGRITA}${Y}No hay predicciones recien echas"
+            echo -e "1️⃣  Cargar un <fichero.>"
+            echo -e "2️⃣  Volver al menu de inicio ${NOCOLOR}${NORMAL}"
+            read -p "Seleccione una opción: " opcion1
+            case $opcion1 in
+            1)
+                cargar_nuevo_tfidf
+                abirir_opciones_informes
+                echo -e "Pulsa enter para volver al menu"
+                read -p ""
+                return 0
+                ;;
+            2)
+                return 0
+                ;;
+            *)
+                echo -e "${R}Opción no válida. Por favor, selecciona una opción válida.${NORMAL}"
+                read -p "Presiona Enter para continuar..."
+                clear
+                ;;
+            esac
+        done
+    else
+        abirir_opciones_informes
+    fi
+}
+
 main() {
     while true; do
         clear
@@ -467,8 +535,8 @@ main() {
             ;;
         3)
             echo -e "${Y}Has seleccionado Informes de resultados${NORMAL}"
+            menu_informes
             # Aquí puedes poner el código para la opción 3
-            read -p "Presiona Enter para continuar..."
             ;;
         4)
             echo -e "${Y}Has seleccionado Ayuda${NORMAL}"
