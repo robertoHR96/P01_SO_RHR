@@ -504,21 +504,9 @@ cargar_nuevo_tfidf() {
 		fi
 	done
 }
-opcion_informes_b() {
-	# Pedir al usuario los nombres de los archivos
-	read -p "Nombre del archivo de palabras a buscar (Fraud_word.txt): " palabras_file
-	read -p "Nombre del archivo de mails (Emails.txt): " emails_file
-
-	# Comprobar si los archivos existen
-	if [[ ! -f $palabras_file ]]; then
-		echo -e "${NORMAL}${NEGRITA}${R}Error: El archivo de $palabras_file no existe\n.${NOCOLOR}${NORMAL}"
-		return
-	fi
-	if [[ ! -f $emails_file ]]; then
-		echo -e "${NORMAL}${NEGRITA}${R}Error: El archivo de $emails_file no existe\n.${NOCOLOR}${NORMAL}"
-		return
-	fi
-
+ejecutar_busqueda_informes_b() {
+	palabras_file=$1
+	emails_file=$2
 	# Declarar un array para almacenar las líneas procesadas
 	lista_terminos=()
 
@@ -535,6 +523,8 @@ opcion_informes_b() {
 
 	# Se le pide al usuario el termino que desea buscar
 	read -p "Introducca el termino que desea buscar: " termino
+	clear
+	echo -e "🔎  Bucando el termino: $termino"
 
 	# Convertir a minúsculas
 	termino=$(echo "$termino" | awk '{print tolower($0)}')
@@ -563,6 +553,7 @@ opcion_informes_b() {
 		# ya que equivale allas columnas y estas con los temrino repitods empiezan en el 4
 		((indice += 4))
 
+		contador_filas_mostradas=1
 		# Encabezado de la tabla
 		echo "-----------------------------------------------------------------------------------"
 		printf "| %-5s | %-54s | %-*s |\n" "ID" "Mail" 3 "Número de veces"
@@ -591,8 +582,8 @@ opcion_informes_b() {
 				# Limitar 'data' a los primeros 50 caracteres
 				# uan vez se optine la data se muestra los mail
 				printf "| %-6s | %-54s | %-*s |\n" "$((j))" "$data" 15 "${valorMatriz}"
-				# si es modulo 20 se pide pulse enter para seguir
-				if [ $((i % 10)) -eq 0 ]; then
+				# si contador_filas_mostradas es modulo 20 se pide pulse enter para seguir
+				if [ $((contador_filas_mostradas % 10)) -eq 0 ]; then
 					echo "-----------------------------------------------------------------------------------"
 					read -p "Pulse enter para continuar" op
 					clear
@@ -600,6 +591,8 @@ opcion_informes_b() {
 					printf "| %-5s | %-54s | %-*s |\n" "ID" "Mail" 3 "Número de veces"
 					echo "-----------------------------------------------------------------------------------"
 				fi
+				# se aumenta en uno el numeor de filas mostradas
+				((contador_filas_mostradas++))
 			fi
 		done
 		echo "-----------------------------------------------------------------------------------"
@@ -609,8 +602,54 @@ opcion_informes_b() {
 	#mail=$(head -n "$contador" "$emails_file" | tail -n 1)
 	#echo "$mail"
 
-	read -p "pulse enter para continuar"
+}
+opcion_informes_b() {
+	clear
+	# Pedir al usuario los nombres de los archivos
+	read -p "Nombre del archivo de palabras a buscar (Fraud_word.txt): " palabras_file
+	read -p "Nombre del archivo de mails (Emails.txt): " emails_file
 
+	# Comprobar si los archivos existen
+	if [[ ! -f $palabras_file ]]; then
+		echo -e "${NORMAL}${NEGRITA}${R}Error: El archivo de $palabras_file no existe\n.${NOCOLOR}${NORMAL}"
+		return
+	fi
+	if [[ ! -f $emails_file ]]; then
+		echo -e "${NORMAL}${NEGRITA}${R}Error: El archivo de $emails_file no existe\n.${NOCOLOR}${NORMAL}"
+		return
+	fi
+
+	clear
+	# se ejcuta la busqued ay se pregunta si se quiere hacer otra
+	ejecutar_busqueda_informes_b $palabras_file $emails_file
+	while true; do
+		clear
+		echo -e "${NORMAL}${NEGRITA}${Y}¿ Que desea hacer ahora ?"
+		echo -e "1️⃣  Realizar otra busqueda"
+		echo -e "2️⃣  Volver atras${NOCOLOR}${NORMAL}"
+		read -p "Seleccione una opcion: " opcion
+		clear
+		case $opcion in
+		1)
+			clear
+			ejecutar_busqueda_informes_b $palabras_file $emails_file
+			clear
+			echo -e "${NORMAL}${NEGRITA}${Y}¿ Que desea hacer ahora ?"
+			echo -e "1️⃣  Realizar otra busqueda"
+			echo -e "2️⃣  Volver atras${NOCOLOR}${NORMAL}"
+			read -p "Seleccione una opcion: " opcion
+			clear
+			;;
+		2)
+			return 0
+			;;
+		*)
+			echo -e "${R}Opción no válida. Por favor, selecciona una opción válida.${NORMAL}"
+			read -p "Presiona Enter para continuar..."
+			clear
+			;;
+		esac
+	done
 }
 opcion_informes_a() {
 	# Pedir al usuario los nombres de los archivos
