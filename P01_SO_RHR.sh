@@ -456,6 +456,162 @@ prediccion_datos() {
 ####################################################################################
 #                               Informes
 ####################################################################################
+
+cargar_fichero_tfidf() {
+	# se guarda el nombre del fichero para crear el .tfidf
+	fichero_tfidf=$1
+	echo -e "Cargando fichero $fichero_tfidf\n"
+	contador_lineas=1
+	numero_de_lineas=$(wc -l <"$fichero_tfidf")
+	while IFS= read -r linea; do
+		numero_de_columnas=$(echo "$linea" | tr ':' ' ' | wc -w)
+		# se le suma uno para que funcione
+		((numero_de_columnas++))
+		for ((i = 1; i < $numero_de_columnas; i++)); do
+			data=$(echo "$linea" | cut -d ":" -f $i)
+			matrizPredicciones[$contador_lineas, $i]=$data
+		done
+		matrizFilas=$contador_lineas
+		((numero_de_columnas--))
+		matrizColum=$numero_de_columnas
+		((numero_de_columnas++))
+		mostrar_barra_progreso_carga_fichero $contador_lineas $numero_de_lineas
+		((contador_lineas++))
+	done <"$fichero_tfidf"
+
+	echo -e "\n${NORMAL}${NEGRITA}${G}Carga del fichero $fichero_tfidf exitosa.${NOCOLOR}${NORMAL}"
+	read -p "Pulse enter para continuar" op
+
+}
+cargar_nuevo_tfidf() {
+	while true; do
+		read -p "Ingrese el nombre del archivo: " nombre_archivo
+
+		if [ -f "$nombre_archivo" ]; then
+			if [[ $nombre_archivo == *.tfidf ]]; then
+				echo -e "El archivo $nombre_archivo existe y tiene la extensión .tfidf\n"
+				cargar_fichero_tfidf $nombre_archivo
+				## se elimina la extension para no dar errores en su busqueda luego
+				fichero_tfidf="${fichero_tfidf%.tfidf}"
+				return 1
+			else
+				echo -e "${NORMAL}${NEGRITA}${R}El archivo $nombre_archivo existe, pero no tiene la extensión .tfidf${NOCOLOR}${NORMAL}"
+				return 0
+			fi
+		else
+			echo -e "${NORMAL}${NEGRITA}${R}El archivo $nombre_archivo no existe.${NOCOLOR}${NORMAL}\n"
+			return 0
+		fi
+	done
+}
+opcion_informes_b() {
+	# Pedir al usuario los nombres de los archivos
+	read -p "Nombre del archivo de palabras a buscar (Fraud_word.txt): " palabras_file
+	read -p "Nombre del archivo de mails (Emails.txt): " emails_file
+
+	# Comprobar si los archivos existen
+	if [[ ! -f $palabras_file ]]; then
+		echo -e "${NORMAL}${NEGRITA}${R}Error: El archivo de $palabras_file no existe\n.${NOCOLOR}${NORMAL}"
+		return
+	fi
+	if [[ ! -f $emails_file ]]; then
+		echo -e "${NORMAL}${NEGRITA}${R}Error: El archivo de $emails_file no existe\n.${NOCOLOR}${NORMAL}"
+		return
+	fi
+
+	# Declarar un array para almacenar las líneas procesadas
+	lista_terminos=()
+
+	# Leer el archivo línea por línea
+	while IFS= read -r linea; do
+		# Convertir a minúsculas
+		linea=$(echo "$linea" | awk '{print tolower($0)}')
+
+		# Reemplazar caracteres no alfanuméricos con espacios
+		linea="${linea//[^[:alnum:]]/ }"
+		# Agregar la línea procesada al array
+		lista_terminos+=("$linea")
+	done <"$palabras_file"
+
+	# Se le pide al usuario el termino que desea buscar
+	read -p "Introducca el termino que desea buscar: " termino
+
+	# Convertir a minúsculas
+	termino=$(echo "$termino" | awk '{print tolower($0)}')
+
+	# Reemplazar caracteres no alfanuméricos con espacios
+	termino="${termino//[^[:alnum:]]/ }"
+
+	# lista de indices don esta el temrino
+	lista_indices=()
+
+	contador=0
+	indice=0
+	for term in "${lista_terminos[@]}"; do
+		if [ "$term" == "$termino" ]; then
+			indice=$contador
+			break
+		fi
+		((contador++))
+	done
+	# pasamos la varible a tipo numer
+	indice=$((indice))
+	# si el indice no es 0
+	# significa que hay coincidencia y se agrego un termino valido
+	if [ $indice -ne 0 ]; then
+		# se el suma 4 al indice para acceder bien a la matriz
+		# ya que equivale allas columnas y estas con los temrino repitods empiezan en el 4
+		((indice += 4))
+
+		# Encabezado de la tabla
+		echo "-----------------------------------------------------------------------------------"
+		printf "| %-5s | %-54s | %-*s |\n" "ID" "Mail" 3 "Número de veces"
+		echo "-----------------------------------------------------------------------------------"
+
+		# Se reccorre toda la columna
+		for ((j = 1; j <= matrizFilas; j++)); do
+			valorMatriz=${matrizPredicciones[$j, $indice]}
+			valorMatriz=$((valorMatriz))
+			# y se ve si tiene coincidencias > 0
+			# luego se muestra la tabla de coincidencias
+			if [ $valorMatriz -ne 0 ]; then
+				# se optine la linea dle mail
+				mail=$(head -n "$j" "$emails_file" | tail -n 1)
+				# se saca el texto del mail
+				data=$(echo "$mail" | cut -d "|" -f 2)
+				# Se formatea el mail
+				#data=$(echo "$data" | awk '{print tolower($0)}')
+				#data="${data//[^[:alnum:]]/ }"
+				# Verificar si 'data' tiene más de 50 caracteres si es asi se le suma los (...)
+				if [ "${#data}" -gt 50 ]; then
+					# se le concatenan los 3 puntos supensivos
+					data="${data:0:50}"
+					data+="..."
+				fi
+				# Limitar 'data' a los primeros 50 caracteres
+				# uan vez se optine la data se muestra los mail
+				printf "| %-6s | %-54s | %-*s |\n" "$((j))" "$data" 15 "${valorMatriz}"
+				# si es modulo 20 se pide pulse enter para seguir
+				if [ $((i % 10)) -eq 0 ]; then
+					echo "-----------------------------------------------------------------------------------"
+					read -p "Pulse enter para continuar" op
+					clear
+					echo "-----------------------------------------------------------------------------------"
+					printf "| %-5s | %-54s | %-*s |\n" "ID" "Mail" 3 "Número de veces"
+					echo "-----------------------------------------------------------------------------------"
+				fi
+			fi
+		done
+		echo "-----------------------------------------------------------------------------------"
+	else
+		echo -e "No existe ningun mail con ese termino"
+	fi
+	#mail=$(head -n "$contador" "$emails_file" | tail -n 1)
+	#echo "$mail"
+
+	read -p "pulse enter para continuar"
+
+}
 opcion_informes_a() {
 	# Pedir al usuario los nombres de los archivos
 	read -p "Nombre del archivo de palabras a buscar (Fraud_word.txt): " palabras_file
@@ -500,10 +656,10 @@ opcion_informes_a() {
 		echo "El archivo $archivo no existe."
 	fi
 
-
 	# Sumar un margen a las longitudes máximas
 	((max_longitud_palabra += 5))
 
+	clear
 	# Encabezado de la tabla
 	echo "-----------------------------------------------------------------------------------"
 	printf "| %-5s | %-*s | %-*s |\n" "Índice" $max_longitud_palabra "Palabra" 3 "Número de veces"
@@ -512,56 +668,19 @@ opcion_informes_a() {
 	# Imprimir los datos con el ancho ajustado
 	for ((i = 1; i < contador_para_listas; i++)); do
 		printf "| %-6s | %-*s | %-*s |\n" "$((i))" $max_longitud_palabra "${lista_palabras[i]}" 15 "${lista_numPalabras[i]}"
+		# si es modulo 20 se pide pulse enter para seguir
+		if [ $((i % 10)) -eq 0 ]; then
+			echo "-----------------------------------------------------------------------------------"
+			read -p "Pulse enter para continuar" op
+			clear
+			echo "-----------------------------------------------------------------------------------"
+			printf "| %-5s | %-*s | %-*s |\n" "Índice" $max_longitud_palabra "Palabra" 3 "Número de veces"
+			echo "-----------------------------------------------------------------------------------"
+		fi
 	done
 
 	echo "-----------------------------------------------------------------------------------"
 	read op
-}
-cargar_fichero_tfidf() {
-	# se guarda el nombre del fichero para crear el .tfidf
-	fichero_tfidf=$1
-	echo -e "Cargando fichero $fichero_tfidf\n"
-	contador_lineas=1
-	numero_de_lineas=$(wc -l <"$fichero_tfidf")
-	while IFS= read -r linea; do
-		numero_de_columnas=$(echo "$linea" | tr ':' ' ' | wc -w)
-		# se le suma uno para que funcione
-		((numero_de_columnas++))
-		for ((i = 1; i < $numero_de_columnas; i++)); do
-			data=$(echo "$linea" | cut -d ":" -f $i)
-			matrizPredicciones[$contador_lineas, $i]=$data
-		done
-		matrizFilas=$contador_lineas
-		((numero_de_columnas--))
-		matrizColum=$numero_de_columnas
-		((numero_de_columnas++))
-		mostrar_barra_progreso_carga_fichero $contador_lineas $numero_de_lineas
-		((contador_lineas++))
-	done <"$fichero_tfidf"
-	echo -e "\n${NORMAL}${NEGRITA}${G}Carga del fichero $fichero_tfidf exitosa. Ejecutando ${NOCOLOR}${NORMAL}"
-	read -p "Pulse enter para continuar" op
-
-}
-cargar_nuevo_tfidf() {
-	while true; do
-		read -p "Ingrese el nombre del archivo: " nombre_archivo
-
-		if [ -f "$nombre_archivo" ]; then
-			if [[ $nombre_archivo == *.tfidf ]]; then
-				echo -e "El archivo $nombre_archivo existe y tiene la extensión .tfidf\n"
-				cargar_fichero_tfidf $nombre_archivo
-				## se elimina la extension para no dar errores en su busqueda luego
-				fichero_tfidf="${fichero_tfidf%.tfidf}"
-				return 1
-			else
-				echo -e "${NORMAL}${NEGRITA}${R}El archivo $nombre_archivo existe, pero no tiene la extensión .tfidf${NOCOLOR}${NORMAL}"
-				return 0
-			fi
-		else
-			echo -e "${NORMAL}${NEGRITA}${R}El archivo $nombre_archivo no existe.${NOCOLOR}${NORMAL}\n"
-			return 0
-		fi
-	done
 }
 abirir_opciones_informes() {
 	while true; do
@@ -577,7 +696,7 @@ abirir_opciones_informes() {
 			opcion_informes_a
 			;;
 		2)
-			realizar_informe2
+			opcion_informes_b
 			;;
 		3)
 			realizar_informe3
