@@ -721,6 +721,82 @@ opcion_informes_a() {
 	echo "-----------------------------------------------------------------------------------"
 	read op
 }
+opcion_informes_c() {
+	while true; do
+		clear
+		read -p "Intrducca el ID del mail que desea examinar: " mail_id
+		if [[ $mail_id -gt $matrizFilas ]] || [[ $mail_id -le 0 ]]; then
+			salirWhile=true
+			while $salirWhile; do
+				clear
+				echo -e "❌ ${NORMAL}${NEGRITA}${Y}ID mail invalido, debe de ser mayor que 0 y menor que $matrizFilas\n seleccione una opcion"
+				echo -e "1️⃣  para intentar de nuevo"
+				echo -e "2️⃣  para volver atras${NOCOLOR}${NORMAL}"
+				read -p "Introudca una opcion: " opcion
+				case $opcion in
+				1)
+					clear
+					salirWhile=false
+					;;
+				2)
+					return 0
+					;;
+				*)
+					echo -e "${R}Opción no válida. Por favor, selecciona una opción válida.${NORMAL}"
+					read -p "Presiona Enter para continuar..."
+					clear
+					;;
+				esac
+			done
+		else
+			contador_id=1
+
+			echo "----------------------------------"
+			printf "| %-5s | %-10s |\n" "ID" "Número de repeticiones"
+			echo "----------------------------------"
+			echo "----------------------------------"
+			for ((i = 4; i < matrizColum; i++)); do
+				valores_matriz=${matrizPredicciones[$mail_id, $i]}
+
+				printf "| %-5s | %-22s |\n" "$((contador_id))" "$valores_matriz veces"
+				echo "----------------------------------"
+				# asi se limita el numero de mails a mostrar en 10
+				if [ $((contador_id % 10)) -eq 0 ]; then
+					read -p "Pulse enter para continuar"
+					clear
+					echo "----------------------------------"
+					printf "| %-5s | %-10s |\n" "ID" "Número de repeticiones"
+					echo "----------------------------------"
+					echo "----------------------------------"
+				fi
+				((contador_id++))
+			done
+			read -p "Pulse enter para continuar..."
+			clear
+			salirWhile2=true
+			while $salirWhile2; do
+				echo -e "${NORMAL}${NEGRITA}${Y}Que desea hacer ahora:"
+				echo -e "1️⃣  para examinar de nuevo"
+				echo -e "2️⃣  para volver atras${NOCOLOR}${NORMAL}"
+				read -p "Introudca una opcion: " opcion
+				case $opcion in
+				1)
+					clear
+					salirWhile2=false
+					;;
+				2)
+					return 0
+					;;
+				*)
+					echo -e "${R}Opción no válida. Por favor, selecciona una opción válida.${NORMAL}"
+					read -p "Presiona Enter para continuar..."
+					clear
+					;;
+				esac
+			done
+		fi
+	done
+}
 abirir_opciones_informes() {
 	while true; do
 		clear
@@ -738,7 +814,7 @@ abirir_opciones_informes() {
 			opcion_informes_b
 			;;
 		3)
-			realizar_informe3
+			opcion_informes_c
 			;;
 		4)
 			return 0
